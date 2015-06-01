@@ -344,42 +344,24 @@ unsigned float_half(unsigned uf) {
  *   Rating: 4
  */
 unsigned float_i2f(int x) {
-  unsigned s = 0u;
-  unsigned even = 0x80000000u;
-  unsigned exp = 0, frac = 0, tmp = 0;
-  unsigned prev, counter, offset, toAdd, remainder;
-  if (x == 0x80000000u) return 0xcf000000u;
+  unsigned s = 0, exp = 31, frac = 0, toAdd = 0;
   if (x == 0x00000000u) return 0x00000000u;
-  if (x & 0x80000000u) {
-    s = 0x80000000u;
-    x = -x;
+  if (x & 0x80000000u) { s = 0x80000000u; x = -x; }
+  while (1) {
+    if (x & 0x80000000u) break;
+    exp -= 1;
+    x <<= 1;
   }
-  prev = x;
-  counter = 16;
-  while (counter) {
-    tmp = prev >> counter;
-    if (tmp) { exp += counter; } else { tmp = prev; }
-    prev = tmp;
-    counter >>= 1;
-  }
-  offset = 23 - exp;
-  if (offset & 0x80000000u) {
-    offset = -offset;
-    remainder = x << (32 - offset);
-    tmp = x >> (offset - 1);
-    if (remainder == even) {
-     toAdd = ((tmp & 3) == 3);
-    } else if (remainder > even) {
-      toAdd = 1;
-    } else {
-      toAdd = 0;
-    }
-    tmp = (tmp >> 1) + toAdd;
-    if (tmp & 0xff000000) { // if carries on
-      exp += 1;
-      tmp = tmp >> 1;
-    }
-    frac = tmp;
-  } else { frac = (x << offset); }
-  return s | ((exp + 127) << 23) | (frac & 0x007fffffu);
+  if ((x & 0x000001ff) == 0x180) toAdd = 1;
+  else if ((x & 0xff) > 0x80) toAdd = 1;
+  /* + toAdd may lead to a carry
+   * if this happens, we need to 
+   *    frac >>= 1
+   *    exp += 1 
+   * However, since we supress the leading 1 of frac,
+   * the carry can be automatically added to exp.
+   */
+  frac = ((x & 0x7fffffffu) >> 8) + toAdd;
+  
+  return s + ((exp + 127) << 23) + frac;
 }
